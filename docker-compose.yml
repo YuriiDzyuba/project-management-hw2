@@ -1,0 +1,86 @@
+version: '3,8'
+
+services:
+  backend:
+    container_name: backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    command: npm run start:dev
+    environment:
+      - BACKEND_PORT=${BACKEND_PORT}
+      - SERVICE_HOST=${SERVICE_HOST}
+      - SERVICE_GLOBAL_PREFIX=${SERVICE_GLOBAL_PREFIX}
+      - SERVICE_NAME=${SERVICE_NAME}
+      - TYPEORM_CONNECTION=${TYPEORM_CONNECTION}
+      - TYPEORM_USERNAME=${TYPEORM_USERNAME}
+      - TYPEORM_PASSWORD=${TYPEORM_PASSWORD}
+      - TYPEORM_DATABASE=${TYPEORM_DATABASE}
+      - TYPEORM_HOST=postgres-db
+      - TYPEORM_PORT=${TYPEORM_PORT}
+    networks:
+      - network-abc
+    volumes:
+      - ./backend/src:/app/src
+    ports:
+      - ${BACKEND_PORT}:${BACKEND_PORT}
+    depends_on:
+      - postgres-db
+    restart: unless-stopped
+
+  frontend:
+      container_name: frontend
+      build:
+        dockerfile: Dockerfile.dev
+        context: ./frontend
+      command: npm run start
+      environment:
+        - NG_CLI_ANALYTICS=ci
+        - FRONTEND_PORT=${FRONTEND_PORT}
+        - SERVICE_NAME=${SERVICE_NAME}
+      networks:
+        - network-abc
+      volumes:
+        - ./frontend/src:/app/src
+      ports:
+        - ${FRONTEND_PORT}:${FRONTEND_PORT}
+      depends_on:
+        - postgres-db
+        - backend
+      restart: unless-stopped
+
+  postgres-db:
+    container_name: postgres-db
+    image: postgres:14.0-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=${TYPEORM_USERNAME}
+      - POSTGRES_PASSWORD=${TYPEORM_PASSWORD}
+      - POSTGRES_DB=${TYPEORM_DATABASE}
+    networks:
+      - network-abc
+    volumes:
+      - postgres-db-data:/var/lib/postgresql/data
+    ports:
+      - ${TYPEORM_PORT}:${TYPEORM_PORT}
+
+  nginx:
+    image: nginx:stable-alpine
+    container_name: nginx
+    ports:
+      - "80:80"
+    networks:
+      - network-abc
+    depends_on:
+      - postgres-db
+      - backend
+      - frontend
+    volumes:
+      - ./nginx/nginx.conf.dev:/etc/nginx/conf.d/nginx.conf
+
+volumes:
+  postgres-db-data:
+
+networks:
+  network-abc:
+    driver: bridge
